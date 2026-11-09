@@ -13,33 +13,58 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-html, body {
-  height: 100%;
-  height: 100dvh;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background-color: #0f172a;
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* === PERBAIKAN UTAMA TAMPILAN & DESAIN PREMIUM === */
+html {
+  /* Memaksa ukuran font standar, mengabaikan settingan besar font di HP */
+  font-size: 14px !important; 
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
 }
-::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-}
-.theme-transition {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-}
+
 body {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  background-color: #0f172a;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  height: 100dvh; /* Memperbaiki tinggi layar di HP modern */
+  width: 100%;
+  overflow: hidden;
 }
+
+/* Mengunci lebar aplikasi & mencegah geser ke samping */
+#app {
+  width: 100%;
+  max-width: 100vw !important;
+  height: 100dvh !important;
+  margin: 0 auto;
+  transform: none !important; /* Mencegah bug zoom manual */
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Mencegah layar auto-zoom saat mengetik di kolom input (Sangat penting di HP) */
+input, select, textarea {
+  font-size: 13px !important; 
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/* Desain Scrollbar Modern */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.3); /* Warna emerald transparan */
+  border-radius: 10px;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -47,6 +72,8 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Efek Animasi Teks Berjalan */
 .marquee-container {
   overflow: hidden;
   white-space: nowrap;
@@ -61,6 +88,46 @@ body {
   0% { transform: translate(0, 0); }
   100% { transform: translate(-100%, 0); }
 }
+
+/* === UPGRADE DESAIN (BIAR MAKIN KEREN & PROFESIONAL) === */
+
+/* Efek Kaca (Glassmorphism) pada Header & Bottom Nav */
+header#main-header, nav#bottom-nav {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  background-color: rgba(4, 120, 87, 0.95) !important; /* Warna Emerald transparan */
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+nav#bottom-nav {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Kartu Produk (Opname & Grosir) */
+#opname-product-list > div, .master-product-card {
+  border-radius: 16px !important; /* Sudut lebih membulat */
+  box-shadow: 0 4px 15px -3px rgba(0,0,0,0.05) !important; /* Bayangan halus */
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  transition: all 0.2s ease !important;
+}
+#opname-product-list > div:active, .master-product-card:active {
+  transform: scale(0.98); /* Efek tekan tombol */
+}
+
+/* Tombol Menu Utama (Login) */
+button {
+  transition: all 0.15s ease-in-out;
+}
+
+/* Kolom Pencarian & Input */
+input[type="text"], input[type="number"] {
+  background-color: #f8fafc !important; /* Warna latar abu-abu sangat muda */
+  border-radius: 12px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+input[type="text"]:focus, input[type="number"]:focus {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important; /* Efek glow emerald saat diklik */
+  }
 </style>
 </head>
 <body class="bg-slate-900 text-slate-800 font-sans antialiased">
