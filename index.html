@@ -882,8 +882,15 @@ input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus {
         </div>
       </div>
       <div class="mt-2 border-t pt-3 space-y-2.5 bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200" id="branch-stock-inputs-container">
-        <label class="font-extrabold text-emerald-950 block text-xs uppercase tracking-wide">Pengaturan Stok Cabang & Utama (Akses Utama)</label>
-        <p class="text-xs font-bold text-slate-600 mb-1.5 leading-tight">Ubah stok fisik langsung di sini atau gunakan fitur Mutasi untuk operasional harian.</p>
+        <div class="flex items-center justify-between gap-2">
+          <label class="font-extrabold text-emerald-950 text-xs uppercase tracking-wide">Stok Gudang & Toko Cabang</label>
+          <button type="button" id="btn-toggle-auto-wh-sync" onclick="toggleAutoWarehouseSyncMode()" class="px-2 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[10px] shadow-xs flex items-center gap-1 shrink-0">
+            <i data-lucide="link" class="w-3 h-3"></i> <span id="auto-wh-sync-label">Sinkron Gudang: ON</span>
+          </button>
+        </div>
+        <p id="auto-wh-sync-desc" class="text-xs font-bold text-slate-600 leading-tight">
+          Otomatis: Tambah stok toko akan mengurangi Gudang; jika dibatalkan/dikurangi akan otomatis kembali ke Gudang.
+        </p>
         <div id="branch-stock-inputs" class="space-y-2"></div>
       </div>
       <div>
@@ -4380,6 +4387,106 @@ function renderMasterProductList() {
   lucide.createIcons();
 }
 
+// =========================================================================
+// SINKRONISASI OTOMATIS STOK GUDANG RUMAH <-> STOK TOKO CABANG SAAT EDIT PRODUK
+// =========================================================================
+window.autoWarehouseSyncEnabled = true;
+window.currentEditOriginalWarehouse = 0;
+
+window.toggleAutoWarehouseSyncMode = function() {
+  window.autoWarehouseSyncEnabled = !window.autoWarehouseSyncEnabled;
+  const btn = document.getElementById('btn-toggle-auto-wh-sync');
+  const lbl = document.getElementById('auto-wh-sync-label');
+  const desc = document.getElementById('auto-wh-sync-desc');
+  if (window.autoWarehouseSyncEnabled) {
+    if (btn) btn.className = "px-2 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[10px] shadow-xs flex items-center gap-1 shrink-0";
+    if (lbl) lbl.innerText = "Sinkron Gudang: ON";
+    if (desc) desc.innerText = "Otomatis: Tambah stok toko akan mengurangi Gudang; jika dibatalkan/dikurangi akan otomatis kembali ke Gudang.";
+    recalculateAutoWarehouseStock();
+  } else {
+    if (btn) btn.className = "px-2 py-1 rounded-lg bg-slate-600 text-white font-extrabold text-[10px] shadow-xs flex items-center gap-1 shrink-0";
+    if (lbl) lbl.innerText = "Sinkron Gudang: OFF";
+    if (desc) desc.innerText = "Manual: Stok Gudang dan Stok Toko diubah secara terpisah tanpa saling memotong.";
+  }
+};
+
+window.onManualWarehouseInput = function() {
+  const whInput = document.getElementById('stock-input-warehouse');
+  if (!whInput) return;
+  const typedWh = Math.max(0, parseInt(whInput.value) || 0);
+  let deltaBranches = 0;
+  branches.forEach(b => {
+    const bInput = document.getElementById(`stock-input-branch-${b}`);
+    const curVal = Math.max(0, parseInt(bInput?.value) || 0);
+    const origVal = window.currentEditOriginalStocks[b] || 0;
+    deltaBranches += (curVal - origVal);
+  });
+  window.currentEditOriginalWarehouse = typedWh + deltaBranches;
+  recalculateAutoWarehouseStock(true);
+};
+
+window.recalculateAutoWarehouseStock = function(skipOverwriteInput = false) {
+  const whInput = document.getElementById('stock-input-warehouse');
+  const deltaBadge = document.getElementById('wh-sync-delta-badge');
+  if (!whInput) return;
+
+  let totalBranchDelta = 0;
+  branches.forEach(b => {
+    const bInput = document.getElementById(`stock-input-branch-${b}`);
+    const badgeEl = document.getElementById(`branch-delta-badge-${b}`);
+    const curVal = Math.max(0, parseInt(bInput?.value) || 0);
+    const origVal = window.currentEditOriginalStocks[b] || 0;
+    const diff = curVal - origVal;
+    totalBranchDelta += diff;
+
+    if (badgeEl) {
+      if (diff > 0) {
+        badgeEl.innerText = `+${diff} dari Gudang`;
+        badgeEl.className = "text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded tabular-nums";
+      } else if (diff < 0) {
+        badgeEl.innerText = `${diff} kembali ke Gudang`;
+        badgeEl.className = "text-[10px] font-extrabold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded tabular-nums";
+      } else {
+        badgeEl.innerText = `Awal: ${origVal}`;
+        badgeEl.className = "text-[10px] font-bold text-slate-500 tabular-nums";
+      }
+    }
+  });
+
+  if (!window.autoWarehouseSyncEnabled) {
+    if (deltaBadge) deltaBadge.classList.add('hidden');
+    return;
+  }
+
+  const computedWh = window.currentEditOriginalWarehouse - totalBranchDelta;
+  if (!skipOverwriteInput) {
+    whInput.value = computedWh;
+  }
+
+  if (deltaBadge) {
+    deltaBadge.classList.remove('hidden');
+    if (computedWh < 0) {
+      whInput.classList.remove('border-amber-400', 'text-amber-950');
+      whInput.classList.add('border-rose-500', 'text-rose-700');
+      deltaBadge.innerText = `⚠️ Stok Gudang Kurang (${computedWh} pcs)`;
+      deltaBadge.className = "text-[10px] font-extrabold text-rose-700 bg-rose-100 px-2 py-0.5 rounded block mt-1 tabular-nums";
+    } else {
+      whInput.classList.remove('border-rose-500', 'text-rose-700');
+      whInput.classList.add('border-amber-400', 'text-amber-950');
+      if (totalBranchDelta > 0) {
+        deltaBadge.innerText = `Gudang awal ${window.currentEditOriginalWarehouse} − ${totalBranchDelta} = ${computedWh} pcs`;
+        deltaBadge.className = "text-[10px] font-extrabold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded block mt-1 tabular-nums";
+      } else if (totalBranchDelta < 0) {
+        deltaBadge.innerText = `Gudang awal ${window.currentEditOriginalWarehouse} + ${Math.abs(totalBranchDelta)} (batal) = ${computedWh} pcs`;
+        deltaBadge.className = "text-[10px] font-extrabold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded block mt-1 tabular-nums";
+      } else {
+        deltaBadge.innerText = `Gudang awal: ${window.currentEditOriginalWarehouse} pcs (Seimbang)`;
+        deltaBadge.className = "text-[10px] font-bold text-slate-600 block mt-1 tabular-nums";
+      }
+    }
+  }
+};
+
 window.openTambahProdukModal = function() {
   document.getElementById('edit-prod-id').value = '';
   document.getElementById('edit-prod-old-cost').value = '';
@@ -4392,9 +4499,15 @@ window.openTambahProdukModal = function() {
   document.getElementById('prod-min-stock').value = '5';
   document.getElementById('prod-expiry').value = '';
   document.getElementById('cost-diff-box').classList.add('hidden');
+  window.autoWarehouseSyncEnabled = false;
   renderBranchStockInputsForProduct(null);
+  const btn = document.getElementById('btn-toggle-auto-wh-sync');
+  const lbl = document.getElementById('auto-wh-sync-label');
+  if (btn) btn.className = "px-2 py-1 rounded-lg bg-slate-600 text-white font-extrabold text-[10px] shadow-xs flex items-center gap-1 shrink-0";
+  if (lbl) lbl.innerText = "Sinkron Gudang: OFF";
   updateMarginLabelPreview();
   document.getElementById('modal-tambah-produk').classList.remove('hidden');
+  lucide.createIcons();
 };
 
 window.editProduct = function(prodId) {
@@ -4412,27 +4525,45 @@ window.editProduct = function(prodId) {
   document.getElementById('prod-min-stock').value = p.minStock || 5;
   document.getElementById('prod-expiry').value = p.expiryDate || '';
   document.getElementById('cost-diff-box').classList.add('hidden');
+  window.autoWarehouseSyncEnabled = true;
+  const btn = document.getElementById('btn-toggle-auto-wh-sync');
+  const lbl = document.getElementById('auto-wh-sync-label');
+  const desc = document.getElementById('auto-wh-sync-desc');
+  if (btn) btn.className = "px-2 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[10px] shadow-xs flex items-center gap-1 shrink-0";
+  if (lbl) lbl.innerText = "Sinkron Gudang: ON";
+  if (desc) desc.innerText = "Otomatis: Tambah stok toko akan mengurangi Gudang; jika dibatalkan/dikurangi akan otomatis kembali ke Gudang.";
   renderBranchStockInputsForProduct(p);
   updateMarginLabelPreview();
   document.getElementById('modal-tambah-produk').classList.remove('hidden');
+  lucide.createIcons();
 };
 
 function renderBranchStockInputsForProduct(prod) {
   const container = document.getElementById('branch-stock-inputs');
   if (!container) return;
-  const whStock = prod ? (prod.warehouseStock || 0) : 0;
+  const whStock = prod ? Number(prod.warehouseStock || 0) : 0;
+  window.currentEditOriginalWarehouse = whStock;
+  window.currentEditOriginalStocks = {};
+
   let html = `
-    <div class="flex items-center justify-between bg-amber-100/70 p-2 rounded-xl border border-amber-300">
-      <span class="font-extrabold text-xs text-amber-950">🏠 Stok Gudang Rumah</span>
-      <input type="number" id="stock-input-warehouse" value="${whStock}" onfocus="this.select()" class="w-20 p-1.5 text-center bg-white border border-amber-400 rounded-lg font-extrabold text-amber-950 tabular-nums">
+    <div class="bg-amber-100/70 p-2.5 rounded-xl border border-amber-300 space-y-1">
+      <div class="flex items-center justify-between">
+        <span class="font-extrabold text-xs text-amber-950">🏠 Stok Gudang Rumah</span>
+        <input type="number" id="stock-input-warehouse" value="${whStock}" onfocus="this.select()" oninput="onManualWarehouseInput()" class="w-20 p-1.5 text-center bg-white border border-amber-400 rounded-lg font-extrabold text-amber-950 tabular-nums">
+      </div>
+      <span id="wh-sync-delta-badge" class="text-[10px] font-bold text-slate-600 block tabular-nums">Gudang awal: ${whStock} pcs (Seimbang)</span>
     </div>
   `;
   branches.forEach(b => {
-    const val = prod && prod.stocks ? (prod.stocks[b] || 0) : 0;
+    const val = prod && prod.stocks ? Number(prod.stocks[b] || 0) : 0;
+    window.currentEditOriginalStocks[b] = val;
     html += `
-      <div class="flex items-center justify-between bg-white p-2 rounded-xl border border-emerald-200">
-        <span class="font-extrabold text-xs text-slate-900">📍 ${b}</span>
-        <input type="number" id="stock-input-branch-${b}" value="${val}" onfocus="this.select()" class="w-20 p-1.5 text-center bg-slate-50 border border-emerald-400 rounded-lg font-extrabold text-emerald-950 tabular-nums">
+      <div class="flex items-center justify-between bg-white p-2 rounded-xl border border-emerald-200 gap-2">
+        <div class="min-w-0">
+          <span class="font-extrabold text-xs text-slate-900 block truncate">📍 ${b}</span>
+          <span id="branch-delta-badge-${b}" class="text-[10px] font-bold text-slate-500 tabular-nums">Awal: ${val}</span>
+        </div>
+        <input type="number" id="stock-input-branch-${b}" value="${val}" onfocus="this.select()" oninput="recalculateAutoWarehouseStock()" class="w-20 p-1.5 text-center bg-slate-50 border border-emerald-400 rounded-lg font-extrabold text-emerald-950 tabular-nums shrink-0">
       </div>
     `;
   });
@@ -4478,13 +4609,17 @@ window.saveProductForm = function() {
   const category = document.getElementById('prod-category').value;
   const minStock = parseInt(document.getElementById('prod-min-stock').value) || 5;
   const expiryDate = document.getElementById('prod-expiry').value;
-  const warehouseStock = parseInt(document.getElementById('stock-input-warehouse')?.value) || 0;
+  const rawWarehouseStock = parseInt(document.getElementById('stock-input-warehouse')?.value);
+  const warehouseStock = isNaN(rawWarehouseStock) ? 0 : rawWarehouseStock;
 
   if (!name || price <= 0) return alert("Nama produk dan harga ecer wajib diisi!");
+  if (warehouseStock < 0) {
+    return alert(`Stok Gudang tidak mencukupi (kurang ${Math.abs(warehouseStock)} pcs)! Kurangi penambahan stok toko atau matikan tombol Sinkron Gudang jika ingin input manual.`);
+  }
 
   const stocksObj = {};
   branches.forEach(b => {
-    stocksObj[b] = parseInt(document.getElementById(`stock-input-branch-${b}`)?.value) || 0;
+    stocksObj[b] = Math.max(0, parseInt(document.getElementById(`stock-input-branch-${b}`)?.value) || 0);
   });
 
   if (editId) {
@@ -4500,6 +4635,27 @@ window.saveProductForm = function() {
       p.expiryDate = expiryDate;
       p.warehouseStock = warehouseStock;
       p.stocks = stocksObj;
+
+      if (window.autoWarehouseSyncEnabled) {
+        branches.forEach(b => {
+          const origVal = window.currentEditOriginalStocks[b] || 0;
+          const newVal = stocksObj[b] || 0;
+          const added = newVal - origVal;
+          if (added > 0) {
+            if (!p.lastRestock) p.lastRestock = {};
+            p.lastRestock[b] = { old: origVal, added: added, total: newVal };
+            notifications.push({
+              id: 'NOTIF-' + Date.now() + '-' + b,
+              branch: b,
+              date: getFormattedDateTimeObj(new Date()).shortDisplay,
+              text: `${p.name}: +${added} pcs (dari Gudang) → Total ${newVal} pcs`,
+              isRead: false
+            });
+          } else if (added < 0 && p.lastRestock && p.lastRestock[b]) {
+            delete p.lastRestock[b];
+          }
+        });
+      }
     }
   } else {
     products.push({
